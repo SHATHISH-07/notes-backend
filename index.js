@@ -4,6 +4,7 @@ const app = express();
 const cors = require("cors");
 
 app.use(cors());
+
 app.use(express.json());
 
 app.use(express.static("dist"));
@@ -52,7 +53,8 @@ app.post("/api/notes", (req, res) => {
 });
 
 app.delete("/api/notes/:id", (req, res) => {
-  const note = notes.filter((note) => note.id === req.params.id);
+  notes = notes.filter((note) => note.id !== req.params.id);
+
   res.status(204).end();
 });
 
