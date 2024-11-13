@@ -9,6 +9,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static("dist"));
 
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malFormatted id" });
+  } else if (error.name === "ValidationError") {
+    return response.status(400).json({ error: error.message });
+  }
+
+  next(error);
+};
+
 app.get("/api/notes", async (req, res) => {
   try {
     const notes = await Note.find({});
@@ -18,7 +30,7 @@ app.get("/api/notes", async (req, res) => {
   }
 });
 
-app.get("/api/notes/:id", async (req, res) => {
+app.get("/api/notes/:id", async (req, res, next) => {
   try {
     const note = await Note.findById(req.params.id);
     if (note) {
@@ -27,23 +39,39 @@ app.get("/api/notes/:id", async (req, res) => {
       res.status(404).send({ error: "Note not found" });
     }
   } catch (error) {
-    res.status(400).send({ error: "Malformatted id" });
+    next(error);
   }
 });
 
-app.post("/api/notes", async (req, res) => {
-  try {
-    const { content, important = false } = req.body;
-    const note = new Note({
-      content,
-      important,
-    });
+app.post("/api/notes", (request, response, next) => {
+  const body = request.body;
 
-    const savedNote = await note.save();
-    res.status(201).json(savedNote);
-  } catch (error) {
-    res.status(400).send({ error: "Failed to create note" });
-  }
+  const note = new Note({
+    content: body.content,
+    important: body.important || false,
+  });
+
+  note
+    .save()
+    .then((savedNote) => {
+      response.json(savedNote);
+    })
+    .catch((error) => next(error));
+});
+
+app.put("/api/notes/:id", (request, response, next) => {
+  const { content, important } = request.body;
+
+  Note.findByIdAndUpdate(
+    request.params.id,
+
+    { content, important },
+    { new: true, runValidators: true, context: "query" }
+  )
+    .then((updatedNote) => {
+      response.json(updatedNote);
+    })
+    .catch((error) => next(error));
 });
 
 app.delete("/api/notes/:id", async (req, res) => {
@@ -51,7 +79,7 @@ app.delete("/api/notes/:id", async (req, res) => {
     await Note.findByIdAndRemove(req.params.id);
     res.status(204).end();
   } catch (error) {
-    res.status(400).send({ error: "Malformatted id" });
+    res.status(400).send({ error: "MalFormatted id" });
   }
 });
 
@@ -59,3 +87,5 @@ const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+app.use(errorHandler);
